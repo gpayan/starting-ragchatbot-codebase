@@ -1,0 +1,234 @@
+USER QUERY FLOW - RAG CHATBOT SYSTEM
+=====================================
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                   FRONTEND                                    │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+    [USER]
+      │
+      ▼
+ ┌─────────────┐
+ │ Input Field │ (index.html:59-64)
+ └─────┬───────┘
+       │ Enter/Click
+       ▼
+ ┌──────────────┐
+ │ sendMessage()│ (script.js:45)
+ └─────┬────────┘
+       │
+       ├─────────────────┐
+       │                 │
+       ▼                 ▼
+ ┌─────────────┐   ┌──────────────┐
+ │Show Loading │   │POST /api/query│ (script.js:63-72)
+ └─────────────┘   └─────┬────────┘
+                         │ {query, session_id}
+                         ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                BACKEND API                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                   ┌─────────────┐
+                   │ /api/query  │ (app.py:56)
+                   └─────┬───────┘
+                         │
+                         ▼
+                  ┌──────────────┐
+                  │Check Session │ (app.py:61)
+                  └──────┬───────┘
+                         │
+           ┌─────────────┴─────────────┐
+           │                           │
+      [No Session]                [Has Session]
+           │                           │
+           ▼                           │
+    ┌──────────────┐                  │
+    │Create Session│ (app.py:63)      │
+    └──────┬───────┘                  │
+           │                           │
+           └─────────────┬─────────────┘
+                         │
+                         ▼
+                 ┌───────────────┐
+                 │rag_system.query│ (rag_system.py:102)
+                 └───────┬───────┘
+                         │
+            ┌────────────┼────────────┐
+            │            │            │
+            ▼            ▼            ▼
+    ┌──────────┐  ┌──────────┐  ┌─────────────┐
+    │Get History│  │Get Tools │  │Create Prompt│
+    └──────────┘  └──────────┘  └─────┬───────┘
+                                       │
+                                       ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              AI GENERATION                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                          ┌──────────────────┐
+                          │ai_generator.generate│ (ai_generator.py:43)
+                          └────────┬──────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+                          │Claude API Call   │ (ai_generator.py:80)
+                          └────────┬──────────┘
+                                   │
+                      ┌────────────┴────────────┐
+                      │                         │
+                 [Uses Tool]              [Direct Answer]
+                      │                         │
+                      ▼                         │
+             ┌────────────────┐                │
+             │search_course_content│            │
+             └────────┬───────────┘            │
+                      │                         │
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            VECTOR SEARCH                                     │
+└──────────────────────────────────────────────────────────────────────────────┘
+                      │
+                      ▼
+             ┌────────────────┐
+             │CourseSearchTool│ (search_tools.py:52)
+             └────────┬───────┘
+                      │
+                      ▼
+             ┌────────────────┐
+             │vector_store.search│ (vector_store.py:61)
+             └────────┬───────┘
+                      │
+                      ▼
+             ┌────────────────┐
+             │   ChromaDB     │
+             │┌──────────────┐│
+             ││course_catalog││
+             │└──────────────┘│
+             │┌──────────────┐│
+             ││course_content││
+             │└──────────────┘│
+             └────────┬───────┘
+                      │ Search Results
+                      ▼
+             ┌────────────────┐
+             │Format Results  │ (search_tools.py:88)
+             └────────┬───────┘
+                      │
+                      │ Tool Results
+                      ▼
+             ┌────────────────┐
+             │Second Claude Call│ (ai_generator.py:134)
+             └────────┬───────┘
+                      │
+                      └────────────┬────────────┘
+                                   │
+                                   ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                           RESPONSE PROCESSING                                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                          ┌──────────────────┐
+                          │Generate Response │
+                          └────────┬──────────┘
+                                   │
+                      ┌────────────┼────────────┐
+                      │            │            │
+                      ▼            ▼            ▼
+              ┌──────────┐  ┌──────────┐  ┌──────────┐
+              │Get Sources│  │Update    │  │Create    │
+              │          │  │Session   │  │Response  │
+              └──────────┘  └──────────┘  └────┬─────┘
+                                               │
+                                               ▼
+                                    ┌──────────────────┐
+                                    │ QueryResponse    │ (app.py:68-72)
+                                    │ {answer,         │
+                                    │  sources,        │
+                                    │  session_id}     │
+                                    └────────┬─────────┘
+                                             │ JSON
+                                             ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            FRONTEND DISPLAY                                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+                                    ┌──────────────────┐
+                                    │Receive Response  │ (script.js:75)
+                                    └────────┬─────────┘
+                                             │
+                          ┌──────────────────┼──────────────────┐
+                          │                  │                  │
+                          ▼                  ▼                  ▼
+                  ┌──────────────┐   ┌──────────────┐  ┌──────────────┐
+                  │Remove Loading│   │Store Session │  │Parse Markdown│
+                  └──────────────┘   │ID            │  │(marked.js)   │
+                                    └──────────────┘  └──────┬───────┘
+                                                             │
+                                                             ▼
+                                                    ┌──────────────┐
+                                                    │Display Message│
+                                                    └──────┬───────┘
+                                                           │
+                                                           ├──► Show Sources
+                                                           │    (if present)
+                                                           │
+                                                           └──► Auto-scroll
+
+
+KEY DATA FLOWS
+==============
+
+1. Query Input Flow:
+   USER → Input → JavaScript → POST Request
+
+2. Session Flow:
+   No Session → Create "session_123" → Store in memory
+   Has Session → Use existing → Maintain history
+
+3. Search Decision Flow:
+   Query → Claude analyzes → Decides tool use → Search or Direct
+
+4. Vector Search Flow:
+   Tool Call → ChromaDB → Semantic Search → Results → Format
+
+5. Response Flow:
+   AI Response → Sources → Session Update → JSON → Frontend
+
+6. Display Flow:
+   JSON → Parse Markdown → Render HTML → Show Sources → Scroll
+
+
+FILE REFERENCES
+===============
+
+Frontend:
+- frontend/index.html:59-64    - Input field
+- frontend/script.js:45         - sendMessage() function
+- frontend/script.js:63-72      - API POST request
+- frontend/script.js:75         - Response handling
+- frontend/script.js:120        - Markdown parsing
+- frontend/script.js:124-130    - Sources display
+
+Backend API:
+- backend/app.py:56             - /api/query endpoint
+- backend/app.py:61-63          - Session checking
+- backend/app.py:68-72          - Response creation
+
+RAG System:
+- backend/rag_system.py:102     - Main query method
+- backend/rag_system.py:119     - Get conversation history
+- backend/rag_system.py:137     - Update session history
+
+AI Generation:
+- backend/ai_generator.py:43    - generate_response() method
+- backend/ai_generator.py:80    - Claude API call
+- backend/ai_generator.py:134   - Final response after tools
+
+Search Tools:
+- backend/search_tools.py:52    - Tool execution
+- backend/search_tools.py:88    - Result formatting
+- backend/vector_store.py:61    - Vector search method
+
+Session Management:
+- backend/session_manager.py:18 - create_session() method
+- backend/session_manager.py:37 - add_exchange() method
