@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Protocol
+from typing import Dict, Any, Optional, Protocol, List
 from abc import ABC, abstractmethod
 from vector_store import VectorStore, SearchResults
 
@@ -23,6 +23,7 @@ class CourseSearchTool(Tool):
     def __init__(self, vector_store: VectorStore):
         self.store = vector_store
         self.last_sources = []  # Track sources from last search
+        self.last_source_objects = []  # Track structured source objects
     
     def get_tool_definition(self) -> Dict[str, Any]:
         """Return Anthropic tool definition for this tool"""
@@ -88,7 +89,8 @@ class CourseSearchTool(Tool):
     def _format_results(self, results: SearchResults) -> str:
         """Format search results with course and lesson context"""
         formatted = []
-        sources = []  # Track sources for the UI
+        sources = []  # Track sources for the UI (legacy)
+        source_objects = []  # Track structured source objects
         
         for doc, meta in zip(results.documents, results.metadata):
             course_title = meta.get('course_title', 'unknown')
@@ -100,18 +102,127 @@ class CourseSearchTool(Tool):
                 header += f" - Lesson {lesson_num}"
             header += "]"
             
-            # Track source for the UI
+            # Track source for the UI (legacy)
             source = course_title
             if lesson_num is not None:
                 source += f" - Lesson {lesson_num}"
             sources.append(source)
             
+            # Get lesson link from vector store
+            lesson_link = None
+            if lesson_num is not None:
+                lesson_link = self.store.get_lesson_link(course_title, lesson_num)
+            elif course_title != 'unknown':
+                # If no lesson number, try to get course link
+                lesson_link = self.store.get_course_link(course_title)
+            
+            # Create structured source object
+            source_obj = {
+                "title": source,
+                "course_title": course_title,
+                "lesson_number": lesson_num,
+                "link": lesson_link
+            }
+            source_objects.append(source_obj)
+            
             formatted.append(f"{header}\n{doc}")
         
         # Store sources for retrieval
         self.last_sources = sources
+        self.last_source_objects = source_objects
         
         return "\n\n".join(formatted)
+
+class CourseOutlineTool(Tool):
+    """Tool for retrieving course outlines with lesson details"""
+    
+    def __init__(self, vector_store: VectorStore):
+        self.store = vector_store
+        self.last_sources = []  # Track sources from last search
+        self.last_source_objects = []  # Track structured source objects
+    
+    def get_tool_definition(self) -> Dict[str, Any]:
+        """Return Anthropic tool definition for this tool"""
+        return {
+            "name": "get_course_outline",
+            "description": "Get complete course outline with course title, link, and lesson list",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "course_name": {
+                        "type": "string",
+                        "description": "Course title to get outline for (partial matches work, e.g. 'MCP', 'Introduction')"
+                    }
+                },
+                "required": ["course_name"]
+            }
+        }
+    
+    def execute(self, course_name: str) -> str:
+        """
+        Execute the course outline tool.
+        
+        Args:
+            course_name: Course name to get outline for
+            
+        Returns:
+            Formatted course outline or error message
+        """
+        import json
+        
+        # Resolve course name to actual title
+        course_title = self.store._resolve_course_name(course_name)
+        if not course_title:
+            return f"No course found matching '{course_name}'"
+        
+        try:
+            # Get course metadata by ID (title is the ID)
+            results = self.store.course_catalog.get(ids=[course_title])
+            
+            if not results or not results.get('metadatas') or not results['metadatas']:
+                return f"Could not retrieve outline for course '{course_name}'"
+            
+            metadata = results['metadatas'][0]
+            
+            # Extract course information
+            course_link = metadata.get('course_link', 'No link available')
+            instructor = metadata.get('instructor', 'Unknown')
+            lesson_count = metadata.get('lesson_count', 0)
+            
+            # Parse lessons JSON
+            lessons_json = metadata.get('lessons_json', '[]')
+            lessons = json.loads(lessons_json)
+            
+            # Format the outline
+            outline = []
+            outline.append(f"**Course Title:** {course_title}")
+            outline.append(f"**Course Link:** {course_link}")
+            outline.append(f"**Instructor:** {instructor}")
+            outline.append(f"**Total Lessons:** {lesson_count}")
+            outline.append("\n**Lesson List:**")
+            
+            if lessons:
+                for lesson in lessons:
+                    lesson_num = lesson.get('lesson_number', '?')
+                    lesson_title = lesson.get('lesson_title', 'Unknown')
+                    outline.append(f"  - Lesson {lesson_num}: {lesson_title}")
+            else:
+                outline.append("  No lessons found")
+            
+            # Track source for the UI
+            source_obj = {
+                "title": f"{course_title} - Course Outline",
+                "course_title": course_title,
+                "lesson_number": None,
+                "link": course_link
+            }
+            self.last_sources = [course_title]
+            self.last_source_objects = [source_obj]
+            
+            return "\n".join(outline)
+            
+        except Exception as e:
+            return f"Error retrieving course outline: {str(e)}"
 
 class ToolManager:
     """Manages available tools for the AI"""
@@ -146,9 +257,19 @@ class ToolManager:
             if hasattr(tool, 'last_sources') and tool.last_sources:
                 return tool.last_sources
         return []
+    
+    def get_last_source_objects(self) -> list:
+        """Get structured source objects from the last search operation"""
+        # Check all tools for last_source_objects attribute
+        for tool in self.tools.values():
+            if hasattr(tool, 'last_source_objects') and tool.last_source_objects:
+                return tool.last_source_objects
+        return []
 
     def reset_sources(self):
         """Reset sources from all tools that track sources"""
         for tool in self.tools.values():
             if hasattr(tool, 'last_sources'):
                 tool.last_sources = []
+            if hasattr(tool, 'last_source_objects'):
+                tool.last_source_objects = []

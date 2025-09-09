@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
+    newChatButton = document.getElementById('newChatButton');
     
     setupEventListeners();
     createNewSession();
@@ -29,6 +30,28 @@ function setupEventListeners() {
         if (e.key === 'Enter') sendMessage();
     });
     
+    // New Chat button
+    newChatButton.addEventListener('click', async () => {
+        // Clear session on backend if exists
+        if (currentSessionId) {
+            try {
+                await fetch(`${API_URL}/session/clear`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId
+                    })
+                });
+            } catch (error) {
+                console.error('Error clearing session:', error);
+            }
+        }
+        
+        // Create new session on frontend
+        createNewSession();
+    });
     
     // Suggested questions
     document.querySelectorAll('.suggested-item').forEach(button => {
@@ -122,10 +145,31 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        // Check if sources are structured objects or plain strings
+        const isStructured = sources[0] && typeof sources[0] === 'object';
+        
+        let sourcesHtml = '';
+        if (isStructured) {
+            // Handle structured sources with links
+            const sourceLinks = sources.map(source => {
+                if (source.link) {
+                    // Create clickable link that opens in new tab
+                    return `<a href="${escapeHtml(source.link)}" target="_blank" rel="noopener noreferrer" class="source-link">${escapeHtml(source.title)}</a>`;
+                } else {
+                    // No link available, just show title
+                    return `<span class="source-no-link">${escapeHtml(source.title)}</span>`;
+                }
+            });
+            sourcesHtml = sourceLinks.join('');
+        } else {
+            // Legacy plain string sources
+            sourcesHtml = sources.map(s => escapeHtml(s)).join(', ');
+        }
+        
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sourcesHtml}</div>
             </details>
         `;
     }
