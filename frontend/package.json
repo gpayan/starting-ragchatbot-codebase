@@ -1,0 +1,19 @@
+{
+  "name": "ragchatbot-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for RAG Chatbot System",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --ext .js,.html",
+    "lint:fix": "eslint . --ext .js,.html --fix",
+    "quality": "npm run format:check && npm run lint",
+    "quality:fix": "npm run format && npm run lint:fix"
+  },
+  "devDependencies": {
+    "prettier": "^3.1.0",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-html": "^7.1.0"
+  }
+}
