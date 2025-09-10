@@ -1,0 +1,45 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended", "prettier"],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "plugins": ["html"],
+  "rules": {
+    "no-console": "warn",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "prefer-const": "error",
+    "no-var": "error",
+    "arrow-body-style": ["error", "as-needed"],
+    "prefer-arrow-callback": "error",
+    "prefer-template": "error",
+    "no-duplicate-imports": "error",
+    "no-useless-rename": "error",
+    "object-shorthand": "error",
+    "prefer-destructuring": [
+      "error",
+      {
+        "object": true,
+        "array": false
+      }
+    ],
+    "no-nested-ternary": "error",
+    "eqeqeq": ["error", "always"],
+    "no-implicit-coercion": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
+    "no-alert": "warn",
+    "curly": ["error", "multi-line"],
+    "consistent-return": "error"
+  },
+  "globals": {
+    "API_URL": "readonly",
+    "marked": "readonly"
+  }
+}
