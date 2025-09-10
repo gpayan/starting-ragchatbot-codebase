@@ -3,9 +3,10 @@ const API_URL = '/api';
 
 // Global state
 let currentSessionId = null;
+let currentTheme = localStorage.getItem('theme') || 'dark';
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton, themeToggle;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -16,6 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
     newChatButton = document.getElementById('newChatButton');
+    themeToggle = document.getElementById('themeToggle');
+    
+    // Initialize theme
+    initializeTheme();
     
     setupEventListeners();
     createNewSession();
@@ -29,6 +34,9 @@ function setupEventListeners() {
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+    
+    // Theme Toggle button
+    themeToggle.addEventListener('click', toggleTheme);
     
     // New Chat button
     newChatButton.addEventListener('click', async () => {
@@ -231,5 +239,40 @@ async function loadCourseStats() {
         if (courseTitles) {
             courseTitles.innerHTML = '<span class="error">Failed to load courses</span>';
         }
+    }
+}
+
+// Theme Management Functions
+function initializeTheme() {
+    // Apply saved theme or default to dark
+    const theme = localStorage.getItem('theme') || 'dark';
+    currentTheme = theme;
+    
+    if (theme === 'light') {
+        document.body.setAttribute('data-theme', 'light');
+    } else {
+        document.body.removeAttribute('data-theme');
+    }
+}
+
+function toggleTheme() {
+    // Toggle between light and dark themes
+    if (currentTheme === 'dark') {
+        currentTheme = 'light';
+        document.body.setAttribute('data-theme', 'light');
+    } else {
+        currentTheme = 'dark';
+        document.body.removeAttribute('data-theme');
+    }
+    
+    // Save preference to localStorage
+    localStorage.setItem('theme', currentTheme);
+    
+    // Add a subtle animation effect to the button
+    if (themeToggle) {
+        themeToggle.style.transform = 'rotate(360deg)';
+        setTimeout(() => {
+            themeToggle.style.transform = '';
+        }, 300);
     }
 }
